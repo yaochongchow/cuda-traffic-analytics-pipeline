@@ -69,8 +69,6 @@ The project should be treated as one phased portfolio project, not as a random c
 
 The full roadmap is documented in [docs/project_phases.md](docs/project_phases.md).
 
-The NVIDIA handoff plan is documented in [README_pc_cuda_handoff.md](README_pc_cuda_handoff.md).
-
 ## Current Traffic Analytics Pipeline
 
 The project now has two lane paths:
@@ -167,6 +165,7 @@ cuda_image_processing/
 |   |-- benchmarking.md
 |   |-- project_phases.md
 |   `-- assets/
+|       |-- demo_small.gif
 |       |-- phase7_cuda_latency_breakdown.png
 |       `-- phase7_fps_comparison.png
 |-- scripts/
@@ -191,7 +190,27 @@ cuda_image_processing/
     `-- test_cpu_pipeline.py
 ```
 
-## Quick Start on M1 Mac
+## Quick Start
+
+Install the local package:
+
+```bash
+python3 -m pip install -e .
+```
+
+Install optional YOLO traffic-object dependencies only when you need object detection:
+
+```bash
+python3 -m pip install -e ".[traffic]"
+```
+
+Install optional Numba CUDA dependencies on the NVIDIA PC:
+
+```bash
+python3 -m pip install -e ".[gpu]"
+```
+
+## CPU Workflow
 
 Generate sample data:
 
@@ -211,29 +230,10 @@ Run lane detection on the sample video:
 python3 scripts/run_lane_detection.py --video data/sample_lane_video.mp4 --write-video
 ```
 
-Run the CUDA path on an NVIDIA PC:
-
-```bash
-python3 scripts/run_lane_detection.py --video data/sample_lane_video.mp4 --mode cuda --write-video
-```
-
-On Windows with the local CUDA Python wheel layout, set the CUDA runtime paths first:
-
-```powershell
-$env:CUDA_PATH = "$PWD\.venv\Lib\site-packages\nvidia\cuda_nvcc"
-$env:PATH = "$env:CUDA_PATH\bin;$env:CUDA_PATH\nvvm\bin;$PWD\.venv\Lib\site-packages\nvidia\cuda_runtime\bin;$env:PATH"
-```
-
 Run the CPU benchmark:
 
 ```bash
 python3 scripts/benchmark_cpu.py --video data/sample_lane_video.mp4
-```
-
-Run the GPU benchmark on an NVIDIA PC:
-
-```bash
-python3 scripts/benchmark_gpu.py --video data/sample_lane_video.mp4
 ```
 
 Generate portfolio-ready screenshots and demo media:
@@ -248,11 +248,31 @@ Run combined traffic analytics on the sample video:
 python3 scripts/run_traffic_analytics.py --video data/sample_lane_video.mp4 --limit-frames 60
 ```
 
-Run advanced lanes plus YOLOv8 object detection after installing optional traffic dependencies:
+Run advanced lanes plus YOLOv8 object detection:
 
 ```bash
-python3 -m pip install -e ".[traffic]"
 python3 scripts/run_traffic_analytics.py --video data/real_drive_clip.mp4 --objects --display
+```
+
+## CUDA Workflow
+
+Run the CUDA lane path on an NVIDIA PC:
+
+```bash
+python3 scripts/run_lane_detection.py --video data/sample_lane_video.mp4 --mode cuda --write-video
+```
+
+Run the GPU benchmark:
+
+```bash
+python3 scripts/benchmark_gpu.py --video data/sample_lane_video.mp4
+```
+
+On Windows with the local CUDA Python wheel layout, set the CUDA runtime paths first:
+
+```powershell
+$env:CUDA_PATH = "$PWD\.venv\Lib\site-packages\nvidia\cuda_nvcc"
+$env:PATH = "$env:CUDA_PATH\bin;$env:CUDA_PATH\nvvm\bin;$PWD\.venv\Lib\site-packages\nvidia\cuda_runtime\bin;$env:PATH"
 ```
 
 Run the CUDA traffic analytics preview on a local real road clip:
