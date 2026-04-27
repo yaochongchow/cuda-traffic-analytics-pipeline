@@ -1,5 +1,7 @@
 # CUDA-Accelerated Real-Time Traffic Analytics Pipeline
 
+![Traffic analytics demo](docs/assets/demo_small.gif)
+
 This project combines the CUDA image-processing work in this repo with the real-time perception modules from [`traffic-monitor`](https://github.com/yaochongchow/traffic-monitor).
 
 The long-term goal is to build a real-time traffic analytics system that compares:
