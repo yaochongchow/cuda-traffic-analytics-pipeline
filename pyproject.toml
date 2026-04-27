@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cuda-image-processing"
 version = "0.1.0"
-description = "CPU-first lane detection baseline with OpenCV and a CUDA handoff plan."
+description = "CUDA-accelerated traffic analytics pipeline with lane detection, optional YOLO objects, and CPU/GPU benchmarks."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -17,6 +17,17 @@ dependencies = [
 [project.optional-dependencies]
 gpu = [
   "numba>=0.60",
+]
+traffic = [
+  "torch>=1.9",
+  "torchvision>=0.10",
+  "ultralytics>=8.0",
+]
+all = [
+  "numba>=0.60",
+  "torch>=1.9",
+  "torchvision>=0.10",
+  "ultralytics>=8.0",
 ]
 
 [tool.setuptools]

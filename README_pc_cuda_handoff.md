@@ -15,6 +15,7 @@ Already completed:
 - CPU benchmark CSV generation
 - Numba CUDA kernels and CUDA mode CLI hooks
 - GPU benchmark and CPU-vs-GPU validation scripts
+- advanced traffic analytics runner from the combined traffic-monitor integration
 - portfolio screenshots and demo clip generation
 - phased roadmap in `docs/project_phases.md`
 
@@ -22,7 +23,7 @@ The Mac version proves the project logic before CUDA enters the picture.
 
 ## What Happens on the PC
 
-The NVIDIA PC work turns the project into the full CUDA lane detection pipeline:
+The NVIDIA PC work turns the project into the full CUDA traffic analytics pipeline:
 
 ```text
 CPU baseline
@@ -31,7 +32,7 @@ CPU baseline
 CUDA preprocessing kernels
         |
         v
-Hybrid CUDA lane detection
+Hybrid CUDA traffic analytics
         |
         v
 CPU vs GPU benchmark results
@@ -85,6 +86,7 @@ Start by running them on the NVIDIA PC:
 ```text
 python3 scripts/run_lane_detection.py --image data/sample_lane_frame.png --mode cuda
 python3 scripts/benchmark_gpu.py --video data/sample_lane_video.mp4 --limit-frames 30
+python3 scripts/run_traffic_analytics.py --video data/sample_lane_video.mp4 --mode cuda --limit-frames 30
 ```
 
 Kernel order:

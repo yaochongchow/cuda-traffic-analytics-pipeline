@@ -1,6 +1,6 @@
 # Full Project Phases
 
-This document turns the current M1-friendly project into a full phased CUDA lane detection project, matching the scope of the larger lane detection plan.
+This document turns the current M1-friendly project into a full phased CUDA traffic analytics project. The project now combines this repo's CPU/CUDA benchmarking work with the real-time lane and traffic-object modules from `traffic-monitor`.
 
 ## Phase 0: M1 CPU Scaffold
 
@@ -17,6 +17,9 @@ Completed deliverables:
 - Python package under `src/cuda_image_processing/`
 - scripts for generation, inference, benchmarking, and portfolio assets
 - optional GPU modules and CLI hooks
+- advanced traffic-monitor lane and perspective modules
+- optional YOLO traffic-object module
+- combined traffic analytics runner
 - sample image and video generation
 - smoke test coverage
 - local git repository
@@ -113,15 +116,15 @@ Definition of done:
 - real video output is stable enough for a portfolio demo
 - CPU benchmark CSV exists for real footage
 
-## Phase 3: Advanced Lane Pipeline
+## Phase 3: Advanced Traffic Analytics Pipeline
 
-Status: Planned
+Status: Code added, needs real road tuning
 
 Machine: M1 MacBook Pro or NVIDIA PC
 
 Goal:
 
-Upgrade from straight Hough lines to the more advanced lane pipeline described in the full project spec.
+Upgrade from straight Hough lines to the more advanced traffic-monitor lane pipeline and optional YOLO object detection.
 
 Target pipeline:
 
@@ -137,18 +140,23 @@ frame
   -> sliding-window lane search
   -> polynomial curve fitting
   -> lane area overlay
+  -> optional YOLO traffic object detection
+  -> object tracking
+  -> FPS and status overlay
 ```
 
 Why this phase matters:
 
 The current Hough-line approach is a good baseline, but the pasted full project describes a more realistic lane detection system that can handle curved lanes and bird's-eye lane analysis.
 
-Suggested modules:
+Files added:
 
 ```text
 src/cuda_image_processing/advanced_lane_detection.py
 src/cuda_image_processing/perspective.py
-src/cuda_image_processing/sliding_window.py
+src/cuda_image_processing/object_detection.py
+src/cuda_image_processing/realtime_pipeline.py
+scripts/run_traffic_analytics.py
 ```
 
 Definition of done:
@@ -157,6 +165,8 @@ Definition of done:
 - sliding-window lane search finds left and right lane pixels
 - polynomial lane curves are drawn back onto the original frame
 - outputs include intermediate images for every major stage
+- combined traffic analytics can write an annotated video
+- optional YOLO mode works after installing `.[traffic]`
 
 ## Phase 4: CUDA Preprocessing
 
@@ -202,7 +212,7 @@ Definition of done:
 - at least grayscale, Sobel, and threshold run on GPU
 - CPU and GPU preprocessing outputs are visually similar
 
-## Phase 5: Hybrid CUDA Lane Detection
+## Phase 5: Hybrid CUDA Traffic Analytics
 
 Status: Planned
 
@@ -210,7 +220,7 @@ Machine: NVIDIA PC
 
 Goal:
 
-Connect CUDA preprocessing to the lane detection system.
+Connect CUDA preprocessing to the traffic analytics system.
 
 Recommended hybrid split:
 
@@ -239,6 +249,7 @@ Definition of done:
 - CUDA mode processes videos
 - CPU and CUDA outputs are functionally similar
 - both modes can be selected from scripts or CLI flags
+- traffic analytics can compare CPU lane mode and CUDA preprocessing mode
 
 ## Phase 6: CPU vs GPU Benchmarking
 
@@ -319,17 +330,17 @@ Definition of done:
 Suggested title:
 
 ```text
-CUDA-Accelerated Real-Time Lane Detection Pipeline
+CUDA-Accelerated Real-Time Traffic Analytics Pipeline
 ```
 
 Suggested description:
 
 ```text
-Real-time lane detection pipeline with CPU OpenCV baseline, CUDA-accelerated preprocessing, per-stage benchmarking, and FPS comparison across road video inputs.
+Real-time traffic analytics pipeline with advanced lane detection, optional YOLOv8 object detection, CUDA-accelerated preprocessing, per-stage benchmarking, and FPS comparison across road video inputs.
 ```
 
 Suggested resume bullet after GPU numbers exist:
 
 ```text
-Accelerated lane detection preprocessing with CUDA kernels for grayscale, blur, Sobel edge detection, and thresholding, improving 1080p video throughput from X FPS to Y FPS while measuring memory transfer overhead and end-to-end latency.
+Built a CUDA-accelerated real-time traffic analytics pipeline combining lane detection, YOLOv8 object tracking, and GPU preprocessing benchmarks, improving 1080p throughput from X FPS to Y FPS while measuring memory transfer overhead and end-to-end latency.
 ```

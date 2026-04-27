@@ -1,10 +1,12 @@
-# CUDA-Accelerated Lane Detection Pipeline
+# CUDA-Accelerated Real-Time Traffic Analytics Pipeline
 
-This project is being developed in phases. The current repository runs on an M1 MacBook Pro as a CPU-only OpenCV baseline, and the later phases are designed for an NVIDIA PC with CUDA.
+This project combines the CUDA image-processing work in this repo with the real-time perception modules from [`traffic-monitor`](https://github.com/yaochongchow/traffic-monitor).
 
-The long-term goal is to build a real-time lane detection system that compares:
+The long-term goal is to build a real-time traffic analytics system that compares:
 
 - CPU-only OpenCV lane detection
+- advanced lane detection with perspective warp, color masks, RANSAC, and temporal tracking
+- optional YOLOv8 traffic object detection and tracking
 - GPU-accelerated preprocessing with CUDA or Numba CUDA
 - optional optimized GPU versions using shared memory, kernel fusion, pinned memory, streams, and profiling
 
@@ -12,7 +14,7 @@ In plain terms:
 
 ```text
 Current Mac phase:
-Build and validate the lane detection baseline.
+Build and validate the traffic analytics baseline.
 
 NVIDIA PC phase:
 Move expensive pixel-level preprocessing to CUDA and benchmark the speedup.
@@ -28,6 +30,10 @@ Completed on the M1 MacBook Pro:
 - synthetic sample image and video generation
 - CPU benchmark scripts
 - Numba CUDA kernel modules and GPU CLI hooks
+- advanced traffic-monitor lane detector
+- perspective transform module
+- optional YOLOv8 traffic object detection module
+- combined realtime traffic analytics runner
 - portfolio screenshots and demo clip generation
 - documentation for the full phased CUDA roadmap
 
@@ -53,7 +59,7 @@ The project should be treated as one phased portfolio project, not as a random c
 | 2 | Real Road Data and Tuning | M1 Mac | Next |
 | 3 | Advanced Lane Pipeline | M1 Mac or PC | Planned |
 | 4 | CUDA Preprocessing | NVIDIA PC | Code Added, Needs NVIDIA Test |
-| 5 | Hybrid CUDA Lane Detection | NVIDIA PC | Planned |
+| 5 | Hybrid CUDA Traffic Analytics | NVIDIA PC | Planned |
 | 6 | CPU vs GPU Benchmarking | NVIDIA PC | Planned |
 | 7 | Optimization and Final Demo | NVIDIA PC | Planned |
 
@@ -61,36 +67,42 @@ The full roadmap is documented in [docs/project_phases.md](docs/project_phases.m
 
 The NVIDIA handoff plan is documented in [README_pc_cuda_handoff.md](README_pc_cuda_handoff.md).
 
-## Current CPU Pipeline
+## Current Traffic Analytics Pipeline
 
-The implemented baseline is intentionally simple and reliable:
+The project now has two lane paths:
+
+```text
+Baseline lane mode:
+grayscale -> blur -> Canny -> ROI -> Hough lines -> overlay
+
+Advanced lane mode:
+road color calibration -> white/yellow masks -> perspective warp
+-> sliding-window search -> RANSAC/tracking -> lane-area overlay
+```
+
+The combined traffic analytics path is:
 
 ```text
 Input Frame
         |
         v
-Grayscale
+Lane Detection
         |
         v
-Gaussian Blur
+Optional YOLOv8 Object Detection
         |
         v
-Canny Edge Detection
+Optional Perspective Display
         |
         v
-Region of Interest Mask
-        |
-        v
-Hough Line Segments
-        |
-        v
-Averaged Left and Right Lane Lines
-        |
-        v
-Lane Overlay
+FPS / Status Overlay
 ```
 
-The main implementation is in [lane_detection.py](src/cuda_image_processing/lane_detection.py).
+The main baseline implementation is in [lane_detection.py](src/cuda_image_processing/lane_detection.py).
+
+The advanced traffic-monitor lane detector is in [advanced_lane_detection.py](src/cuda_image_processing/advanced_lane_detection.py).
+
+The optional YOLO traffic detector is in [object_detection.py](src/cuda_image_processing/object_detection.py).
 
 ## Future CUDA Pipeline
 
@@ -218,6 +230,19 @@ Generate portfolio-ready screenshots and demo media:
 python3 scripts/prepare_portfolio_assets.py
 ```
 
+Run combined traffic analytics on the sample video:
+
+```bash
+python3 scripts/run_traffic_analytics.py --video data/sample_lane_video.mp4 --limit-frames 60
+```
+
+Run advanced lanes plus YOLOv8 object detection after installing optional traffic dependencies:
+
+```bash
+python3 -m pip install -e ".[traffic]"
+python3 scripts/run_traffic_analytics.py --video data/real_drive_clip.mp4 --objects --display
+```
+
 Run smoke tests:
 
 ```bash
@@ -232,6 +257,6 @@ Committed portfolio-ready assets are written to `docs/assets/`.
 
 ## Next Development Step
 
-The best next step is Phase 2: replace the synthetic sample video with real road footage and tune the CPU detector against real lanes before starting CUDA work.
+The best next step is Phase 2: replace the synthetic sample video with real road footage and tune the advanced traffic analytics path against real lanes and vehicles before collecting final CUDA numbers.
 
 After that, move to the NVIDIA PC and follow [README_pc_cuda_handoff.md](README_pc_cuda_handoff.md).
