@@ -1,28 +1,138 @@
-# CUDA Image Processing on M1: CPU Baseline
+# CUDA-Accelerated Lane Detection Pipeline
 
-This repository is now structured so it works on an M1 MacBook Pro without CUDA, while keeping the project aligned with the original GPU-acceleration goal.
+This project is being developed in phases. The current repository runs on an M1 MacBook Pro as a CPU-only OpenCV baseline, and the later phases are designed for an NVIDIA PC with CUDA.
 
-What is implemented here:
+The long-term goal is to build a real-time lane detection system that compares:
+
+- CPU-only OpenCV lane detection
+- GPU-accelerated preprocessing with CUDA or Numba CUDA
+- optional optimized GPU versions using shared memory, kernel fusion, pinned memory, streams, and profiling
+
+In plain terms:
+
+```text
+Current Mac phase:
+Build and validate the lane detection baseline.
+
+NVIDIA PC phase:
+Move expensive pixel-level preprocessing to CUDA and benchmark the speedup.
+```
+
+## Current Status
+
+Completed on the M1 MacBook Pro:
 
 - Python project structure under `src/`
 - OpenCV CPU baseline
-- Lane detection pipeline for images and video
-- Synthetic sample image and video generation
+- lane detection for images and videos
+- synthetic sample image and video generation
 - CPU benchmark scripts
-- Portfolio asset generation for screenshots and demo clips
-- Documentation for the current Mac workflow
-- A separate PC handoff plan for CUDA work in `README_pc_cuda_handoff.md`
+- portfolio screenshots and demo clip generation
+- documentation for the full phased CUDA roadmap
 
-What is intentionally deferred to a Windows/Linux NVIDIA machine:
+Deferred to the NVIDIA PC:
 
 - NVIDIA driver setup
 - CUDA Toolkit setup
-- `nvidia-smi`
+- `nvidia-smi` verification
 - CUDA or Numba CUDA kernels
 - CPU vs GPU benchmarks
-- FPS and latency collection for GPU runs
-- Final comparison charts
-- GPU demo recording
+- GPU FPS and latency numbers
+- final benchmark charts
+- final CUDA demo video
+
+## Project Phases
+
+The project should be treated as one phased portfolio project, not as a random collection of scripts.
+
+| Phase | Name | Machine | Status |
+|---:|---|---|---|
+| 0 | M1 CPU Scaffold | M1 Mac | Done |
+| 1 | CPU Lane Detection Baseline | M1 Mac | Done |
+| 2 | Real Road Data and Tuning | M1 Mac | Next |
+| 3 | Advanced Lane Pipeline | M1 Mac or PC | Planned |
+| 4 | CUDA Preprocessing | NVIDIA PC | Planned |
+| 5 | Hybrid CUDA Lane Detection | NVIDIA PC | Planned |
+| 6 | CPU vs GPU Benchmarking | NVIDIA PC | Planned |
+| 7 | Optimization and Final Demo | NVIDIA PC | Planned |
+
+The full roadmap is documented in [docs/project_phases.md](docs/project_phases.md).
+
+The NVIDIA handoff plan is documented in [README_pc_cuda_handoff.md](README_pc_cuda_handoff.md).
+
+## Current CPU Pipeline
+
+The implemented baseline is intentionally simple and reliable:
+
+```text
+Input Frame
+        |
+        v
+Grayscale
+        |
+        v
+Gaussian Blur
+        |
+        v
+Canny Edge Detection
+        |
+        v
+Region of Interest Mask
+        |
+        v
+Hough Line Segments
+        |
+        v
+Averaged Left and Right Lane Lines
+        |
+        v
+Lane Overlay
+```
+
+The main implementation is in [lane_detection.py](src/cuda_image_processing/lane_detection.py).
+
+## Future CUDA Pipeline
+
+The target CUDA pipeline will keep high-level lane logic on the CPU at first and move pixel-level preprocessing to the GPU:
+
+```text
+Input Frame
+        |
+        v
+Copy frame to GPU
+        |
+        v
+CUDA Grayscale
+        |
+        v
+CUDA Blur
+        |
+        v
+CUDA Sobel
+        |
+        v
+CUDA Threshold
+        |
+        v
+Optional CUDA ROI Mask
+        |
+        v
+Copy binary image back to CPU
+        |
+        v
+Perspective Warp
+        |
+        v
+Lane Pixel Search
+        |
+        v
+Polynomial Fit
+        |
+        v
+Overlay Rendering
+```
+
+This gives the project the same shape as the full lane detection spec: first build the working vision system, then accelerate the expensive image preprocessing stages.
 
 ## Project Layout
 
@@ -37,6 +147,7 @@ cuda_image_processing/
 ├── docs/
 │   ├── architecture.md
 │   ├── benchmarking.md
+│   ├── project_phases.md
 │   └── assets/
 │       ├── lane_detection_demo.mp4
 │       ├── lane_detection_hero.png
@@ -58,21 +169,7 @@ cuda_image_processing/
     └── test_cpu_pipeline.py
 ```
 
-## CPU Pipeline
-
-The baseline lane-detection pipeline is:
-
-1. Convert BGR input to grayscale
-2. Apply Gaussian blur
-3. Run Canny edge detection
-4. Apply a trapezoidal region-of-interest mask
-5. Detect line segments with probabilistic Hough transform
-6. Fit averaged left and right lane lines
-7. Overlay the lane estimate back onto the original frame
-
-This is intentionally CPU-only so it can run cleanly on Apple Silicon today.
-
-## Quick Start
+## Quick Start on M1 Mac
 
 Generate sample data:
 
@@ -104,7 +201,7 @@ Generate portfolio-ready screenshots and demo media:
 python3 scripts/prepare_portfolio_assets.py
 ```
 
-Run the smoke tests:
+Run smoke tests:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
@@ -116,9 +213,9 @@ Generated runtime outputs are written to `outputs/` and are intentionally gitign
 
 Committed portfolio-ready assets are written to `docs/assets/`.
 
-## Next Step for PC Work
+## Next Development Step
 
-For the CUDA handoff and benchmark plan you want to run on your NVIDIA PC, use:
+The best next step is Phase 2: replace the synthetic sample video with real road footage and tune the CPU detector against real lanes before starting CUDA work.
 
-[`README_pc_cuda_handoff.md`](README_pc_cuda_handoff.md)
+After that, move to the NVIDIA PC and follow [README_pc_cuda_handoff.md](README_pc_cuda_handoff.md).
 

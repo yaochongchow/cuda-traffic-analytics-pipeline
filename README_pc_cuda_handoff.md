@@ -1,170 +1,242 @@
-# PC CUDA Handoff Plan
+# NVIDIA PC CUDA Handoff
 
-This README is the handoff for the parts that should be completed on an NVIDIA Windows or Linux machine rather than on the M1 MacBook Pro.
+This file is the practical handoff for the phases that cannot be completed on the M1 MacBook Pro.
 
-## Current State
+Use this when moving the project to a Windows or Linux machine with an NVIDIA GPU.
 
-Already completed on the Mac:
+## What Comes From the Mac
+
+Already completed:
 
 - Python project structure
-- OpenCV CPU baseline
-- Lane detection logic
-- Sample image and sample video generation
-- CPU benchmark tooling
-- Portfolio screenshot and demo-media generation
+- CPU OpenCV lane detection baseline
+- image and video processing scripts
+- synthetic sample image and video
+- CPU benchmark CSV generation
+- portfolio screenshots and demo clip generation
+- phased roadmap in `docs/project_phases.md`
 
-Still to do on the NVIDIA PC:
+The Mac version proves the project logic before CUDA enters the picture.
 
-- Install NVIDIA driver
-- Install CUDA Toolkit
-- Verify `nvidia-smi`
-- Add CUDA or Numba CUDA kernels
-- Benchmark CPU vs GPU
-- Collect FPS and latency numbers
-- Generate final comparison charts
-- Record a polished demo video
+## What Happens on the PC
 
-## Recommended PC Setup
+The NVIDIA PC work turns the project into the full CUDA lane detection pipeline:
 
-- OS: Ubuntu 22.04 or Windows 11
-- GPU: NVIDIA RTX or GTX card with current drivers
-- Python: 3.11 or 3.12
+```text
+CPU baseline
+        |
+        v
+CUDA preprocessing kernels
+        |
+        v
+Hybrid CUDA lane detection
+        |
+        v
+CPU vs GPU benchmark results
+        |
+        v
+Final charts and demo video
+```
+
+## Recommended Setup
+
+- OS: Ubuntu 22.04, Ubuntu 24.04, or Windows 11
+- GPU: NVIDIA GTX, RTX, or workstation GPU
 - CUDA Toolkit: 12.x
-- Libraries: `numpy`, `opencv-python`, `numba`, `matplotlib`
+- Python: 3.11 or 3.12
+- Packages: `numpy`, `opencv-python`, `numba`, `matplotlib`
 
-## Phase 1: Environment Setup
+## Phase PC-1: Verify NVIDIA Environment
 
-1. Install the latest NVIDIA driver for the GPU.
-2. Install the CUDA Toolkit.
-3. Verify the GPU is visible:
+Install the NVIDIA driver and CUDA Toolkit, then verify:
 
 ```bash
 nvidia-smi
+nvcc --version
 ```
 
-4. Verify Python can see CUDA through Numba:
+Verify Numba CUDA:
 
 ```bash
-python -c "from numba import cuda; print(cuda.is_available()); print(cuda.detect())"
+python3 -c "from numba import cuda; print(cuda.is_available()); cuda.detect()"
 ```
 
-Expected outcome:
+Done when:
 
-- `nvidia-smi` works
-- `cuda.is_available()` returns `True`
+- `nvidia-smi` shows the GPU
+- `nvcc --version` shows CUDA
+- `cuda.is_available()` is `True`
 
-## Phase 2: Add Numba CUDA Kernels
+## Phase PC-2: Add CUDA Preprocessing Kernels
 
-Create a GPU module that mirrors the CPU stages:
+Start with Numba CUDA because it fits the current Python repo.
 
-- grayscale kernel
-- Gaussian or box blur kernel
-- Sobel or Canny-prep kernel
-- threshold kernel
-- optional lane-mask or ROI kernel
-
-Recommended file additions:
+Suggested files:
 
 ```text
 src/cuda_image_processing/gpu_numba.py
 src/cuda_image_processing/gpu_pipeline.py
 ```
 
-Recommended implementation order:
+Kernel order:
 
-1. Grayscale kernel
-2. Blur kernel
-3. Sobel or threshold kernel
-4. End-to-end GPU preprocessing path
-5. Hybrid lane fitting on CPU if needed
+1. Grayscale
+2. Blur
+3. Sobel
+4. Threshold
+5. ROI mask
 
-## Phase 3: GPU Validation
+The first GPU target should be preprocessing, not the entire lane detector.
 
-For each operation:
+Done when:
 
-- compare CPU and GPU output visually
-- compute mean absolute error
-- compute max absolute difference
+- each kernel runs on one image
+- GPU output can be copied back to CPU
+- intermediate GPU outputs can be saved for inspection
 
-Suggested validation script additions:
+## Phase PC-3: Validate CPU vs GPU Output
+
+Create:
 
 ```text
 scripts/validate_cpu_vs_gpu.py
 ```
 
-## Phase 4: Benchmark CPU vs GPU
+Validation should compute:
 
-Use the current CPU benchmark output as the baseline.
+- mean absolute error
+- max pixel difference
+- difference images
+- visual side-by-side comparisons
 
-Benchmark both:
+Suggested outputs:
 
-- kernel-only time
-- end-to-end GPU time including host/device transfer
-- average frame time
-- FPS
+```text
+outputs/validation/diff_grayscale.png
+outputs/validation/diff_sobel.png
+outputs/validation/diff_threshold.png
+outputs/validation/cpu_vs_gpu_overlay.png
+```
 
-Suggested measurements:
+Done when:
 
-- grayscale ms
-- blur ms
-- edge-detection ms
-- full preprocessing ms
-- lane-overlay ms
-- total frame ms
-- CPU FPS
-- GPU FPS
-- speedup
+- GPU preprocessing is close enough to CPU preprocessing
+- differences are explainable through rounding, border handling, or algorithm choices
+
+## Phase PC-4: Add Hybrid CUDA Mode
+
+Recommended split:
+
+```text
+GPU:
+- grayscale
+- blur
+- Sobel
+- threshold
+- optional ROI mask
+
+CPU:
+- perspective warp
+- lane pixel search
+- polynomial fit
+- overlay rendering
+```
 
 Suggested command shape:
 
 ```bash
-python3 scripts/benchmark_cpu.py --video data/sample_lane_video.mp4
-python3 scripts/benchmark_gpu.py --video data/sample_lane_video.mp4
+python3 scripts/run_lane_detection.py --video data/real_drive_clip.mp4 --mode cpu
+python3 scripts/run_lane_detection.py --video data/real_drive_clip.mp4 --mode cuda --write-video
 ```
 
-## Phase 5: Final Charts
+Done when:
 
-After CPU and GPU CSV files exist, generate:
+- CPU mode still works
+- CUDA mode produces a lane overlay
+- processed CUDA video is saved
 
-- CPU vs GPU time per stage
-- full-pipeline FPS comparison
-- transfer time vs kernel-only time
-- speedup by operation
+## Phase PC-5: Benchmark CPU vs GPU
 
-Suggested output files:
+Create:
 
 ```text
-outputs/charts/cpu_vs_gpu_stage_time.png
+scripts/benchmark_gpu.py
+scripts/plot_benchmarks.py
+```
+
+Benchmark both kernel-only and end-to-end time.
+
+Important timing categories:
+
+- CPU preprocessing time
+- CUDA kernel time
+- host-to-device copy time
+- device-to-host copy time
+- GPU end-to-end preprocessing time
+- full frame time
+- FPS
+
+Suggested command shape:
+
+```bash
+python3 scripts/benchmark_cpu.py --video data/real_drive_clip.mp4
+python3 scripts/benchmark_gpu.py --video data/real_drive_clip.mp4
+python3 scripts/plot_benchmarks.py
+```
+
+Done when:
+
+- CPU and GPU CSVs exist
+- charts are generated
+- FPS comparison is available
+- speedup is calculated from real numbers
+
+## Phase PC-6: Optimize
+
+After the basic CUDA path works, improve it.
+
+Optimization order:
+
+1. Keep data on GPU across multiple kernels
+2. Fuse Sobel and threshold
+3. Add shared memory Sobel
+4. Use pinned host memory
+5. Add CUDA streams for video throughput
+6. Move ROI mask to CUDA
+7. Consider CUDA perspective warp as a stretch goal
+
+Done when:
+
+- optimized mode improves either preprocessing time or total FPS
+- benchmark charts show the difference between naive and optimized GPU paths
+
+## Phase PC-7: Final Demo
+
+Final deliverables:
+
+- original road frame
+- CPU lane output
+- CUDA lane output
+- side-by-side demo video
+- FPS overlay
+- benchmark charts
+- final README numbers
+
+Suggested final outputs:
+
+```text
+docs/assets/original_frame.png
+docs/assets/cpu_lane_output.png
+docs/assets/cuda_lane_output.png
+docs/assets/cpu_vs_cuda_demo.mp4
 outputs/charts/fps_comparison.png
-outputs/charts/gpu_transfer_vs_kernel.png
+outputs/charts/per_stage_latency.png
 outputs/charts/speedup_by_stage.png
 ```
 
-## Phase 6: Final Demo Recording
+Done when:
 
-Record a demo that shows:
-
-1. Original sample video
-2. CPU lane detection output
-3. GPU lane detection output
-4. Benchmark summary
-5. Final charts
-
-Suggested demo flow:
-
-- show `nvidia-smi`
-- run the benchmark command
-- open generated comparison charts
-- play the processed output video
-
-## Definition of Done
-
-The PC work is complete when all of these are true:
-
-- CUDA environment is verified
-- at least one Numba CUDA kernel runs successfully
-- CPU vs GPU benchmark CSVs exist
-- comparison charts are generated
-- FPS and latency numbers are recorded
-- a final demo clip or screen recording is exported
+- the README includes real FPS and latency numbers
+- the demo clearly shows CPU vs CUDA output
+- the resume bullet includes measured improvement
 
