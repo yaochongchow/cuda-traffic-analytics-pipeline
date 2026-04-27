@@ -93,7 +93,7 @@ class TrafficObjectDetector:
                     confidence=float(track["confidence"]),
                     class_id=int(track["cls_id"]),
                     class_name=str(track["class_name"]),
-                    track_id=int(track["id"]),
+                    track_id=None,
                 )
             )
         return detections
@@ -185,8 +185,7 @@ class TrafficObjectDetector:
         for detection in detections:
             color = self.colors.get(detection.class_name, self.default_color)
             cv2.rectangle(output, (detection.x1, detection.y1), (detection.x2, detection.y2), color, thickness)
-            suffix = f" #{detection.track_id}" if detection.track_id is not None else ""
-            label = f"{detection.class_name}{suffix} {detection.confidence:.2f}"
+            label = f"{detection.class_name} {detection.confidence:.2f}"
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
             cv2.rectangle(output, (detection.x1, detection.y1 - th - 8), (detection.x1 + tw, detection.y1), color, -1)
             cv2.putText(output, label, (detection.x1, detection.y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)

@@ -31,6 +31,7 @@ class CudaPreprocessResult:
     edges: np.ndarray
     roi_edges: np.ndarray
     timings_ms: dict[str, float]
+    lane_stats: np.ndarray | None = None
 
 
 def get_cuda_status() -> CudaStatus:
@@ -137,6 +138,22 @@ if cuda is not None:
         else:
             roi_edges[y, x] = 0
 
+    @cuda.jit
+    def _lane_stats_kernel(roi_edges, stats, width, height, center_x):
+        x, y = cuda.grid(2)
+        if x >= width or y >= height or roi_edges[y, x] == 0:
+            return
+
+        side = 0 if x < center_x else 1
+        xf = float(x)
+        yf = float(y)
+
+        cuda.atomic.add(stats, (side, 0), 1.0)
+        cuda.atomic.add(stats, (side, 1), yf)
+        cuda.atomic.add(stats, (side, 2), xf)
+        cuda.atomic.add(stats, (side, 3), yf * yf)
+        cuda.atomic.add(stats, (side, 4), xf * yf)
+
 
 def _kernel_time_ms(kernel, grid_dims, block_dims, *args) -> float:
     start = cuda.event()
@@ -148,68 +165,161 @@ def _kernel_time_ms(kernel, grid_dims, block_dims, *args) -> float:
     return cuda.event_elapsed_time(start, stop)
 
 
-def preprocess_frame_cuda(frame: np.ndarray, sobel_threshold: int = 120) -> CudaPreprocessResult:
-    require_cuda()
+class CudaFramePreprocessor:
+    """Reusable CUDA buffers for fixed-size video frames."""
 
-    if frame.ndim != 3 or frame.shape[2] != 3:
-        raise ValueError("CUDA preprocessing expects a BGR frame with shape height x width x 3.")
+    def __init__(self, frame_shape: tuple[int, int, int], sobel_threshold: int = 625):
+        require_cuda()
+        if len(frame_shape) != 3 or frame_shape[2] != 3:
+            raise ValueError("CUDA preprocessing expects a BGR frame with shape height x width x 3.")
 
-    frame = np.ascontiguousarray(frame, dtype=np.uint8)
-    height, width = frame.shape[:2]
-    block_dims = (16, 16)
-    grid_dims = ((width + block_dims[0] - 1) // block_dims[0], (height + block_dims[1] - 1) // block_dims[1])
+        self.height, self.width = frame_shape[:2]
+        self.frame_shape = frame_shape
+        self.sobel_threshold = sobel_threshold
+        self.block_dims = (16, 16)
+        self.grid_dims = (
+            (self.width + self.block_dims[0] - 1) // self.block_dims[0],
+            (self.height + self.block_dims[1] - 1) // self.block_dims[1],
+        )
+        self.empty_image = np.empty((0, 0), dtype=np.uint8)
+        self.zero_lane_stats = np.zeros((2, 5), dtype=np.float64)
 
-    timings_ms: dict[str, float] = {}
+        self.d_frame = cuda.device_array(frame_shape, dtype=np.uint8)
+        self.d_gray = cuda.device_array((self.height, self.width), dtype=np.uint8)
+        self.d_blurred = cuda.device_array((self.height, self.width), dtype=np.uint8)
+        self.d_edges = cuda.device_array((self.height, self.width), dtype=np.uint8)
+        self.d_roi_edges = cuda.device_array((self.height, self.width), dtype=np.uint8)
+        self.d_lane_stats = cuda.device_array((2, 5), dtype=np.float64)
 
-    start_ns = perf_counter_ns()
-    d_frame = cuda.to_device(frame)
-    d_gray = cuda.device_array((height, width), dtype=np.uint8)
-    d_blurred = cuda.device_array((height, width), dtype=np.uint8)
-    d_edges = cuda.device_array((height, width), dtype=np.uint8)
-    d_roi_edges = cuda.device_array((height, width), dtype=np.uint8)
-    cuda.synchronize()
-    timings_ms["copy_h2d"] = _elapsed_ms(start_ns)
+    def process(
+        self,
+        frame: np.ndarray,
+        copy_intermediates: bool = True,
+        copy_roi_edges: bool = True,
+        compute_lane_stats: bool = False,
+    ) -> CudaPreprocessResult:
+        if frame.shape != self.frame_shape:
+            raise ValueError(f"Expected frame shape {self.frame_shape}, got {frame.shape}.")
 
-    timings_ms["grayscale"] = _kernel_time_ms(_bgr_to_gray_kernel, grid_dims, block_dims, d_frame, d_gray, width, height)
-    timings_ms["blur"] = _kernel_time_ms(_box_blur_3x3_kernel, grid_dims, block_dims, d_gray, d_blurred, width, height)
-    timings_ms["edges"] = _kernel_time_ms(_sobel_threshold_kernel, grid_dims, block_dims, d_blurred, d_edges, width, height, sobel_threshold)
+        frame = np.ascontiguousarray(frame, dtype=np.uint8)
+        timings_ms: dict[str, float] = {}
 
-    top_y = int(height * 0.60)
-    left_bottom_x = int(width * 0.08)
-    left_top_x = int(width * 0.43)
-    right_top_x = int(width * 0.57)
-    right_bottom_x = int(width * 0.92)
-    timings_ms["roi"] = _kernel_time_ms(
-        _roi_mask_kernel,
-        grid_dims,
-        block_dims,
-        d_edges,
-        d_roi_edges,
-        width,
-        height,
-        top_y,
-        left_bottom_x,
-        left_top_x,
-        right_top_x,
-        right_bottom_x,
-    )
-    timings_ms["gpu_kernel_total"] = timings_ms["grayscale"] + timings_ms["blur"] + timings_ms["edges"] + timings_ms["roi"]
+        start_ns = perf_counter_ns()
+        self.d_frame.copy_to_device(frame)
+        if compute_lane_stats:
+            self.d_lane_stats.copy_to_device(self.zero_lane_stats)
+        cuda.synchronize()
+        timings_ms["copy_h2d"] = _elapsed_ms(start_ns)
 
-    start_ns = perf_counter_ns()
-    grayscale = d_gray.copy_to_host()
-    blurred = d_blurred.copy_to_host()
-    edges = d_edges.copy_to_host()
-    roi_edges = d_roi_edges.copy_to_host()
-    cuda.synchronize()
-    timings_ms["copy_d2h"] = _elapsed_ms(start_ns)
+        timings_ms["grayscale"] = _kernel_time_ms(
+            _bgr_to_gray_kernel,
+            self.grid_dims,
+            self.block_dims,
+            self.d_frame,
+            self.d_gray,
+            self.width,
+            self.height,
+        )
+        timings_ms["blur"] = _kernel_time_ms(
+            _box_blur_3x3_kernel,
+            self.grid_dims,
+            self.block_dims,
+            self.d_gray,
+            self.d_blurred,
+            self.width,
+            self.height,
+        )
+        timings_ms["edges"] = _kernel_time_ms(
+            _sobel_threshold_kernel,
+            self.grid_dims,
+            self.block_dims,
+            self.d_blurred,
+            self.d_edges,
+            self.width,
+            self.height,
+            self.sobel_threshold,
+        )
 
-    timings_ms["gpu_preprocess_total"] = timings_ms["copy_h2d"] + timings_ms["gpu_kernel_total"] + timings_ms["copy_d2h"]
+        top_y = int(self.height * 0.60)
+        left_bottom_x = int(self.width * 0.08)
+        left_top_x = int(self.width * 0.43)
+        right_top_x = int(self.width * 0.57)
+        right_bottom_x = int(self.width * 0.92)
+        timings_ms["roi"] = _kernel_time_ms(
+            _roi_mask_kernel,
+            self.grid_dims,
+            self.block_dims,
+            self.d_edges,
+            self.d_roi_edges,
+            self.width,
+            self.height,
+            top_y,
+            left_bottom_x,
+            left_top_x,
+            right_top_x,
+            right_bottom_x,
+        )
 
-    return CudaPreprocessResult(
-        grayscale=grayscale,
-        blurred=blurred,
-        edges=edges,
-        roi_edges=roi_edges,
-        timings_ms=timings_ms,
+        if compute_lane_stats:
+            timings_ms["lane_stats"] = _kernel_time_ms(
+                _lane_stats_kernel,
+                self.grid_dims,
+                self.block_dims,
+                self.d_roi_edges,
+                self.d_lane_stats,
+                self.width,
+                self.height,
+                self.width // 2,
+            )
+
+        timings_ms["gpu_kernel_total"] = (
+            timings_ms["grayscale"]
+            + timings_ms["blur"]
+            + timings_ms["edges"]
+            + timings_ms["roi"]
+            + timings_ms.get("lane_stats", 0.0)
+        )
+
+        start_ns = perf_counter_ns()
+        if copy_intermediates:
+            grayscale = self.d_gray.copy_to_host()
+            blurred = self.d_blurred.copy_to_host()
+            edges = self.d_edges.copy_to_host()
+        else:
+            grayscale = self.empty_image
+            blurred = self.empty_image
+            edges = self.empty_image
+
+        roi_edges = self.d_roi_edges.copy_to_host() if copy_roi_edges else self.empty_image
+        lane_stats = self.d_lane_stats.copy_to_host() if compute_lane_stats else None
+        cuda.synchronize()
+        timings_ms["copy_d2h"] = _elapsed_ms(start_ns)
+        timings_ms["gpu_preprocess_total"] = (
+            timings_ms["copy_h2d"] + timings_ms["gpu_kernel_total"] + timings_ms["copy_d2h"]
+        )
+
+        return CudaPreprocessResult(
+            grayscale=grayscale,
+            blurred=blurred,
+            edges=edges,
+            roi_edges=roi_edges,
+            timings_ms=timings_ms,
+            lane_stats=lane_stats,
+        )
+
+
+def preprocess_frame_cuda(
+    frame: np.ndarray,
+    sobel_threshold: int = 625,
+    copy_intermediates: bool = True,
+    copy_roi_edges: bool = True,
+    compute_lane_stats: bool = False,
+) -> CudaPreprocessResult:
+    preprocessor = CudaFramePreprocessor(frame.shape, sobel_threshold=sobel_threshold)
+    return preprocessor.process(
+        frame,
+        copy_intermediates=copy_intermediates,
+        copy_roi_edges=copy_roi_edges,
+        compute_lane_stats=compute_lane_stats,
     )
 

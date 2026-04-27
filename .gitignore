@@ -7,3 +7,6 @@ __pycache__/
 venv/
 outputs/
 *.egg-info/
+*.pt
+docs/assets/*.avi
+docs/assets/*.mp4

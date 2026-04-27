@@ -37,16 +37,15 @@ Completed on the M1 MacBook Pro:
 - portfolio screenshots and demo clip generation
 - documentation for the full phased CUDA roadmap
 
-Deferred to the NVIDIA PC:
+Completed on the NVIDIA PC:
 
 - NVIDIA driver setup
-- CUDA Toolkit setup
+- CUDA runtime/NVVM setup for Numba CUDA
 - `nvidia-smi` verification
-- running and validating the CUDA path
-- CPU vs GPU benchmarks
-- GPU FPS and latency numbers
-- final benchmark charts
-- final CUDA demo video
+- running and validating the CUDA path on an RTX 3080 Ti
+- GPU lane-stat reduction replacing CPU Hough in CUDA mode
+- CPU vs GPU benchmarks on 1080p sample footage
+- Phase 7 side-by-side demo video and benchmark charts
 
 ## Project Phases
 
@@ -58,10 +57,10 @@ The project should be treated as one phased portfolio project, not as a random c
 | 1 | CPU Lane Detection Baseline | M1 Mac | Done |
 | 2 | Real Road Data and Tuning | M1 Mac | Next |
 | 3 | Advanced Lane Pipeline | M1 Mac or PC | Planned |
-| 4 | CUDA Preprocessing | NVIDIA PC | Code Added, Needs NVIDIA Test |
-| 5 | Hybrid CUDA Traffic Analytics | NVIDIA PC | Planned |
-| 6 | CPU vs GPU Benchmarking | NVIDIA PC | Planned |
-| 7 | Optimization and Final Demo | NVIDIA PC | Planned |
+| 4 | CUDA Preprocessing | NVIDIA PC | Done |
+| 5 | Hybrid CUDA Traffic Analytics | NVIDIA PC | Baseline Implemented |
+| 6 | CPU vs GPU Benchmarking | NVIDIA PC | Initial 1080p Complete |
+| 7 | Optimization and Final Demo | NVIDIA PC | Implemented |
 
 The full roadmap is documented in [docs/project_phases.md](docs/project_phases.md).
 
@@ -104,15 +103,15 @@ The advanced traffic-monitor lane detector is in [advanced_lane_detection.py](sr
 
 The optional YOLO traffic detector is in [object_detection.py](src/cuda_image_processing/object_detection.py).
 
-## Future CUDA Pipeline
+## Optimized CUDA Pipeline
 
-The target CUDA pipeline will keep high-level lane logic on the CPU at first and move pixel-level preprocessing to the GPU:
+The optimized CUDA lane path keeps preprocessing and lane-pixel reduction on the GPU:
 
 ```text
 Input Frame
         |
         v
-Copy frame to GPU
+Reusable GPU frame buffers
         |
         v
 CUDA Grayscale
@@ -127,25 +126,24 @@ CUDA Sobel
 CUDA Threshold
         |
         v
-Optional CUDA ROI Mask
+CUDA ROI Mask
         |
         v
-Copy binary image back to CPU
+CUDA left/right lane-stat reduction
         |
-        v
-Perspective Warp
-        |
-        v
-Lane Pixel Search
-        |
-        v
-Polynomial Fit
+Copy compact lane stats back to CPU
         |
         v
 Overlay Rendering
 ```
 
-This gives the project the same shape as the full lane detection spec: first build the working vision system, then accelerate the expensive image preprocessing stages.
+Latest 1080p benchmark on `docs/assets/sample.avi`:
+
+```text
+CPU baseline: 27.900 ms/frame, ~35.84 FPS
+CUDA optimized: 10.359 ms/frame, ~96.53 FPS
+Speedup: ~2.69x
+```
 
 ## Project Layout
 

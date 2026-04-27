@@ -10,15 +10,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from cuda_image_processing.gpu_numba import CudaUnavailableError
-from cuda_image_processing.gpu_pipeline import explain_cuda_unavailable, run_cuda_lane_detection
+from cuda_image_processing.gpu_pipeline import CudaLaneDetector, explain_cuda_unavailable, run_cuda_lane_detection
 from cuda_image_processing.io_utils import OUTPUTS_DIR, build_video_writer, ensure_dir, iter_video_frames, read_image, save_image
 from cuda_image_processing.lane_detection import run_lane_detection
 
 
-def _detector_for_mode(mode: str):
+def _detector_for_mode(mode: str, copy_intermediates: bool = True):
     if mode == "cpu":
         return run_lane_detection
-    return run_cuda_lane_detection
+
+    def detect_cuda(frame):
+        return run_cuda_lane_detection(frame, copy_intermediates=copy_intermediates)
+
+    return detect_cuda
 
 
 def _run_on_image(image_path: Path, mode: str) -> None:
@@ -38,10 +42,11 @@ def _run_on_video(video_path: Path, write_video: bool, mode: str) -> None:
     output_dir = ensure_dir(OUTPUTS_DIR / "runs")
     writer = None
     output_path = output_dir / f"{video_path.stem}_{mode}_lanes.mp4"
-    detector = _detector_for_mode(mode)
+    detector = _detector_for_mode(mode, copy_intermediates=False)
+    cuda_detector = CudaLaneDetector() if mode == "cuda" else None
 
     for frame_index, frame in enumerate(iter_video_frames(video_path)):
-        result = detector(frame)
+        result = cuda_detector.process(frame) if cuda_detector is not None else detector(frame)
         if write_video and writer is None:
             writer = build_video_writer(output_path, (frame.shape[1], frame.shape[0]), 24.0)
         if writer is not None:

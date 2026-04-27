@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from cuda_image_processing.gpu_numba import CudaUnavailableError
-from cuda_image_processing.gpu_pipeline import explain_cuda_unavailable, run_cuda_lane_detection
+from cuda_image_processing.gpu_pipeline import CudaLaneDetector, explain_cuda_unavailable, run_cuda_lane_detection
 from cuda_image_processing.io_utils import OUTPUTS_DIR, ensure_dir, iter_video_frames, read_image
 
 
@@ -23,6 +23,7 @@ FIELDS = [
     "blur_ms",
     "edges_ms",
     "roi_ms",
+    "lane_stats_ms",
     "gpu_kernel_total_ms",
     "copy_d2h_ms",
     "gpu_preprocess_total_ms",
@@ -45,6 +46,7 @@ def _row(frame_index: int, frame, result) -> dict[str, object]:
         "blur_ms": round(result.timings_ms.get("blur", 0.0), 4),
         "edges_ms": round(result.timings_ms.get("edges", 0.0), 4),
         "roi_ms": round(result.timings_ms.get("roi", 0.0), 4),
+        "lane_stats_ms": round(result.timings_ms.get("lane_stats", 0.0), 4),
         "gpu_kernel_total_ms": round(result.timings_ms.get("gpu_kernel_total", 0.0), 4),
         "copy_d2h_ms": round(result.timings_ms.get("copy_d2h", 0.0), 4),
         "gpu_preprocess_total_ms": round(result.timings_ms.get("gpu_preprocess_total", 0.0), 4),
@@ -76,16 +78,17 @@ def _write_summary(path: Path, rows: list[dict[str, object]]) -> None:
 
 def _benchmark_image(image_path: Path) -> list[dict[str, object]]:
     frame = read_image(image_path)
-    result = run_cuda_lane_detection(frame)
+    result = run_cuda_lane_detection(frame, copy_intermediates=False)
     return [_row(0, frame, result)]
 
 
 def _benchmark_video(video_path: Path, limit_frames: int | None) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
+    detector = CudaLaneDetector()
     for frame_index, frame in enumerate(iter_video_frames(video_path)):
         if limit_frames is not None and frame_index >= limit_frames:
             break
-        result = run_cuda_lane_detection(frame)
+        result = detector.process(frame)
         rows.append(_row(frame_index, frame, result))
     return rows
 

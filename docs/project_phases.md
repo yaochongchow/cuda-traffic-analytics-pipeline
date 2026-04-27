@@ -170,7 +170,7 @@ Definition of done:
 
 ## Phase 4: CUDA Preprocessing
 
-Status: Code added, needs NVIDIA PC testing
+Status: Done on NVIDIA PC
 
 Machine: NVIDIA PC
 
@@ -203,7 +203,17 @@ The current CUDA path implements:
 - 3x3 box blur
 - Sobel edge thresholding
 - trapezoid ROI masking
-- CPU Hough lane fitting and overlay after GPU preprocessing
+- GPU lane-pixel statistics for left/right lane fitting
+- CPU overlay rendering from compact GPU lane results
+
+Latest NVIDIA PC result on `docs/assets/sample.avi`:
+
+```text
+Input: 1920x1080, 300 benchmark frames
+CPU baseline: 27.900 ms/frame, ~35.84 FPS
+CUDA optimized: 10.359 ms/frame, ~96.53 FPS
+Speedup: ~2.69x
+```
 
 Definition of done:
 
@@ -214,7 +224,7 @@ Definition of done:
 
 ## Phase 5: Hybrid CUDA Traffic Analytics
 
-Status: Planned
+Status: Baseline implemented
 
 Machine: NVIDIA PC
 
@@ -222,7 +232,7 @@ Goal:
 
 Connect CUDA preprocessing to the traffic analytics system.
 
-Recommended hybrid split:
+Implemented hybrid split:
 
 ```text
 GPU:
@@ -230,18 +240,27 @@ GPU:
 - blur
 - Sobel
 - threshold
-- optional ROI
+- ROI mask
+- left/right lane-pixel statistics
 
 CPU:
-- perspective warp
-- sliding-window search
-- polynomial fit
+- convert compact GPU statistics into lane lines
 - overlay rendering
 ```
 
 Why this split is useful:
 
-Pixel-level preprocessing maps naturally to CUDA. Higher-level lane logic is easier to keep on the CPU for the first GPU version.
+Pixel-level preprocessing maps naturally to CUDA, and the first lane-fitting step now stays on the GPU by reducing ROI edge pixels into compact regression statistics. The CPU receives tiny left/right lane summaries instead of running Hough line detection over the full ROI image.
+
+Files updated:
+
+```text
+src/cuda_image_processing/gpu_numba.py
+src/cuda_image_processing/gpu_pipeline.py
+src/cuda_image_processing/realtime_pipeline.py
+scripts/run_lane_detection.py
+scripts/benchmark_gpu.py
+```
 
 Definition of done:
 
@@ -249,11 +268,11 @@ Definition of done:
 - CUDA mode processes videos
 - CPU and CUDA outputs are functionally similar
 - both modes can be selected from scripts or CLI flags
-- traffic analytics can compare CPU lane mode and CUDA preprocessing mode
+- traffic analytics can compare CPU lane mode and CUDA lane mode
 
 ## Phase 6: CPU vs GPU Benchmarking
 
-Status: Planned
+Status: Initial 1080p benchmark complete
 
 Machine: NVIDIA PC
 
@@ -268,16 +287,29 @@ Benchmark categories:
 - host-to-device copy time
 - device-to-host copy time
 - GPU end-to-end preprocessing time
-- lane search time
-- curve fitting time
+- GPU lane-stat reduction time
+- lane-line reconstruction time
 - overlay time
 - total frame time
 - FPS
 
-Recommended CSV schema:
+Current GPU CSV schema:
 
 ```csv
-frame,resolution,mode,grayscale_ms,blur_ms,sobel_ms,threshold_ms,copy_h2d_ms,copy_d2h_ms,lane_search_ms,curve_fit_ms,overlay_ms,total_ms,fps
+frame_index,resolution,mode,copy_h2d_ms,grayscale_ms,blur_ms,edges_ms,roi_ms,lane_stats_ms,gpu_kernel_total_ms,copy_d2h_ms,gpu_preprocess_total_ms,fit_lanes_ms,overlay_ms,total_ms,fps,lanes_detected
+```
+
+Latest benchmark summary:
+
+```text
+CPU total: 27.900 ms/frame
+CPU FPS: ~35.84
+
+CUDA total: 10.359 ms/frame
+CUDA FPS: ~96.53
+CUDA kernel total: 0.391 ms/frame
+CUDA lane stats: 0.192 ms/frame
+CUDA lane fit/reconstruction: 0.063 ms/frame
 ```
 
 Definition of done:
@@ -286,11 +318,12 @@ Definition of done:
 - GPU benchmark CSV exists
 - per-stage timings exist
 - FPS is reported for both modes
-- benchmark results cover at least 720p and 1080p
+- benchmark results cover at least 1080p
+- future benchmark results cover additional 720p and real-road clips
 
 ## Phase 7: Optimization and Final Demo
 
-Status: Planned
+Status: Implemented
 
 Machine: NVIDIA PC
 
@@ -298,25 +331,37 @@ Goal:
 
 Turn the working GPU implementation into a polished portfolio project.
 
-Optimization ideas:
+Completed optimizations:
+
+- reuse GPU buffers across frames
+- reduce host-to-device copy overhead from repeated allocation
+- avoid full ROI image downloads in fast video mode
+- keep lane fitting on GPU via lane-stat reduction
+- generate final demo assets from the optimized CUDA path
+
+Remaining optimization ideas:
 
 - shared memory Sobel
 - kernel fusion
 - pinned host memory
 - CUDA streams
-- keep data on GPU longer
-- move ROI mask to CUDA
+- optionally move overlay rendering to CUDA
 - optionally move perspective warp to CUDA
 
-Final assets:
+Generated final assets:
 
-- CPU output video
-- CUDA output video
-- side-by-side comparison video
-- benchmark charts
-- FPS comparison chart
-- README screenshots
-- final demo recording
+- `docs/assets/phase7_cpu_vs_cuda_demo.mp4`
+- `docs/assets/phase7_fps_comparison.png`
+- `docs/assets/phase7_cuda_latency_breakdown.png`
+- `outputs/benchmarks/phase7_demo_summary.csv`
+
+Latest standalone benchmark:
+
+```text
+CPU baseline: 27.900 ms/frame, ~35.84 FPS
+CUDA optimized: 10.359 ms/frame, ~96.53 FPS
+Speedup: ~2.69x
+```
 
 Definition of done:
 
@@ -342,5 +387,5 @@ Real-time traffic analytics pipeline with advanced lane detection, optional YOLO
 Suggested resume bullet after GPU numbers exist:
 
 ```text
-Built a CUDA-accelerated real-time traffic analytics pipeline combining lane detection, YOLOv8 object tracking, and GPU preprocessing benchmarks, improving 1080p throughput from X FPS to Y FPS while measuring memory transfer overhead and end-to-end latency.
+Built a CUDA-accelerated real-time traffic analytics pipeline with reusable GPU buffers, GPU lane-stat reduction, and per-stage benchmarks, improving 1080p lane detection throughput from ~36 FPS to ~97 FPS while measuring memory transfer overhead and end-to-end latency.
 ```

@@ -143,6 +143,94 @@ def draw_lane_lines(frame: np.ndarray, lanes: list[tuple[int, int, int, int]]) -
     return overlay
 
 
+def detect_color_lane_lines(frame: np.ndarray) -> list[tuple[int, int, int, int]]:
+    height, width = frame.shape[:2]
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    hls = cv2.cvtColor(frame, cv2.COLOR_BGR2HLS)
+
+    yellow = cv2.inRange(hsv, np.array([12, 45, 70]), np.array([45, 255, 255]))
+    white = cv2.inRange(hls, np.array([0, 165, 0]), np.array([255, 255, 150]))
+    mask = cv2.bitwise_or(yellow, white)
+
+    roi = np.zeros((height, width), np.uint8)
+    polygon = np.array(
+        [
+            [
+                (0, height - 1),
+                (int(width * 0.30), int(height * 0.20)),
+                (int(width * 0.78), int(height * 0.20)),
+                (width - 1, height - 1),
+            ]
+        ],
+        dtype=np.int32,
+    )
+    cv2.fillPoly(roi, polygon, 255)
+    mask = cv2.bitwise_and(mask, roi)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+
+    lines = cv2.HoughLinesP(
+        mask,
+        1,
+        np.pi / 180,
+        threshold=25,
+        minLineLength=max(int(height * 0.08), 35),
+        maxLineGap=max(int(height * 0.12), 45),
+    )
+    if lines is None:
+        return []
+
+    y_bottom = height - 1
+    y_top = int(height * 0.36)
+    candidates: dict[str, list[tuple[float, float, float]]] = {"left": [], "right": []}
+
+    for segment in lines[:, 0, :]:
+        x1, y1, x2, y2 = map(float, segment)
+        vertical_span = abs(y2 - y1)
+        if vertical_span < height * 0.12:
+            continue
+
+        dx_dy = (x2 - x1) / (y2 - y1)
+        if abs(dx_dy) < 0.25 or abs(dx_dy) > 3.5:
+            continue
+
+        intercept = x1 - dx_dy * y1
+        x_bottom = dx_dy * y_bottom + intercept
+        x_top = dx_dy * y_top + intercept
+        if not (-width * 0.1 <= x_bottom <= width * 1.1 and -width * 0.1 <= x_top <= width * 1.1):
+            continue
+
+        length = float(np.hypot(x2 - x1, y2 - y1))
+        reaches_bottom = max(y1, y2) >= height * 0.66
+        if not reaches_bottom:
+            continue
+        score = length * 1.4
+
+        if dx_dy < 0 and width * 0.08 <= x_bottom <= width * 0.72 and width * 0.35 <= x_top <= width * 1.05:
+            candidates["left"].append((score, dx_dy, intercept))
+        elif dx_dy > 0 and width * 0.35 <= x_bottom <= width * 0.92 and width * 0.35 <= x_top <= width * 0.92:
+            candidates["right"].append((score, dx_dy, intercept))
+
+    lanes: list[tuple[int, int, int, int]] = []
+    for side in ("left", "right"):
+        side_candidates = sorted(candidates[side], key=lambda item: item[0], reverse=True)[:8]
+        if not side_candidates:
+            continue
+        total_score = sum(score for score, _, _ in side_candidates)
+        dx_dy = sum(dx_dy * score for score, dx_dy, _ in side_candidates) / total_score
+        intercept = sum(intercept * score for score, _, intercept in side_candidates) / total_score
+        lanes.append(
+            (
+                int(np.clip(dx_dy * y_bottom + intercept, 0, width - 1)),
+                y_bottom,
+                int(np.clip(dx_dy * y_top + intercept, 0, width - 1)),
+                y_top,
+            )
+        )
+
+    return lanes
+
+
 def run_lane_detection(frame: np.ndarray) -> LaneDetectionResult:
     timings_ms: dict[str, float] = {}
     total_start = perf_counter_ns()
