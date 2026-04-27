@@ -16,6 +16,7 @@ Completed deliverables:
 
 - Python package under `src/cuda_image_processing/`
 - scripts for generation, inference, benchmarking, and portfolio assets
+- optional GPU modules and CLI hooks
 - sample image and video generation
 - smoke test coverage
 - local git repository
@@ -159,7 +160,7 @@ Definition of done:
 
 ## Phase 4: CUDA Preprocessing
 
-Status: Planned
+Status: Code added, needs NVIDIA PC testing
 
 Machine: NVIDIA PC
 
@@ -177,7 +178,7 @@ CUDA kernels to implement:
 - binary threshold
 - optional ROI mask
 
-Suggested files:
+Files added:
 
 ```text
 src/cuda_image_processing/gpu_numba.py
@@ -185,6 +186,14 @@ src/cuda_image_processing/gpu_pipeline.py
 scripts/benchmark_gpu.py
 scripts/validate_cpu_vs_gpu.py
 ```
+
+The current CUDA path implements:
+
+- BGR to grayscale
+- 3x3 box blur
+- Sobel edge thresholding
+- trapezoid ROI masking
+- CPU Hough lane fitting and overlay after GPU preprocessing
 
 Definition of done:
 
@@ -324,4 +333,3 @@ Suggested resume bullet after GPU numbers exist:
 ```text
 Accelerated lane detection preprocessing with CUDA kernels for grayscale, blur, Sobel edge detection, and thresholding, improving 1080p video throughput from X FPS to Y FPS while measuring memory transfer overhead and end-to-end latency.
 ```
-

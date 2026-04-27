@@ -14,9 +14,13 @@ dependencies = [
   "matplotlib>=3.8",
 ]
 
+[project.optional-dependencies]
+gpu = [
+  "numba>=0.60",
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

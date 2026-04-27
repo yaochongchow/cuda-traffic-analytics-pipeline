@@ -13,6 +13,8 @@ Already completed:
 - image and video processing scripts
 - synthetic sample image and video
 - CPU benchmark CSV generation
+- Numba CUDA kernels and CUDA mode CLI hooks
+- GPU benchmark and CPU-vs-GPU validation scripts
 - portfolio screenshots and demo clip generation
 - phased roadmap in `docs/project_phases.md`
 
@@ -67,15 +69,22 @@ Done when:
 - `nvcc --version` shows CUDA
 - `cuda.is_available()` is `True`
 
-## Phase PC-2: Add CUDA Preprocessing Kernels
+## Phase PC-2: Run CUDA Preprocessing Kernels
 
-Start with Numba CUDA because it fits the current Python repo.
-
-Suggested files:
+Numba CUDA modules have been added already:
 
 ```text
 src/cuda_image_processing/gpu_numba.py
 src/cuda_image_processing/gpu_pipeline.py
+scripts/benchmark_gpu.py
+scripts/validate_cpu_vs_gpu.py
+```
+
+Start by running them on the NVIDIA PC:
+
+```text
+python3 scripts/run_lane_detection.py --image data/sample_lane_frame.png --mode cuda
+python3 scripts/benchmark_gpu.py --video data/sample_lane_video.mp4 --limit-frames 30
 ```
 
 Kernel order:
@@ -96,7 +105,7 @@ Done when:
 
 ## Phase PC-3: Validate CPU vs GPU Output
 
-Create:
+The validation script exists:
 
 ```text
 scripts/validate_cpu_vs_gpu.py
@@ -123,7 +132,7 @@ Done when:
 - GPU preprocessing is close enough to CPU preprocessing
 - differences are explainable through rounding, border handling, or algorithm choices
 
-## Phase PC-4: Add Hybrid CUDA Mode
+## Phase PC-4: Improve Hybrid CUDA Mode
 
 Recommended split:
 
@@ -142,10 +151,10 @@ CPU:
 - overlay rendering
 ```
 
-Suggested command shape:
+Current command shape:
 
 ```bash
-python3 scripts/run_lane_detection.py --video data/real_drive_clip.mp4 --mode cpu
+python3 scripts/run_lane_detection.py --video data/real_drive_clip.mp4 --mode cpu --write-video
 python3 scripts/run_lane_detection.py --video data/real_drive_clip.mp4 --mode cuda --write-video
 ```
 
@@ -157,10 +166,9 @@ Done when:
 
 ## Phase PC-5: Benchmark CPU vs GPU
 
-Create:
+The GPU benchmark script exists. A plotting script is still a good next addition:
 
 ```text
-scripts/benchmark_gpu.py
 scripts/plot_benchmarks.py
 ```
 
@@ -239,4 +247,3 @@ Done when:
 - the README includes real FPS and latency numbers
 - the demo clearly shows CPU vs CUDA output
 - the resume bullet includes measured improvement
-

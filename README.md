@@ -27,6 +27,7 @@ Completed on the M1 MacBook Pro:
 - lane detection for images and videos
 - synthetic sample image and video generation
 - CPU benchmark scripts
+- Numba CUDA kernel modules and GPU CLI hooks
 - portfolio screenshots and demo clip generation
 - documentation for the full phased CUDA roadmap
 
@@ -35,7 +36,7 @@ Deferred to the NVIDIA PC:
 - NVIDIA driver setup
 - CUDA Toolkit setup
 - `nvidia-smi` verification
-- CUDA or Numba CUDA kernels
+- running and validating the CUDA path
 - CPU vs GPU benchmarks
 - GPU FPS and latency numbers
 - final benchmark charts
@@ -51,7 +52,7 @@ The project should be treated as one phased portfolio project, not as a random c
 | 1 | CPU Lane Detection Baseline | M1 Mac | Done |
 | 2 | Real Road Data and Tuning | M1 Mac | Next |
 | 3 | Advanced Lane Pipeline | M1 Mac or PC | Planned |
-| 4 | CUDA Preprocessing | NVIDIA PC | Planned |
+| 4 | CUDA Preprocessing | NVIDIA PC | Code Added, Needs NVIDIA Test |
 | 5 | Hybrid CUDA Lane Detection | NVIDIA PC | Planned |
 | 6 | CPU vs GPU Benchmarking | NVIDIA PC | Planned |
 | 7 | Optimization and Final Demo | NVIDIA PC | Planned |
@@ -154,13 +155,17 @@ cuda_image_processing/
 │       └── lane_detection_stages.png
 ├── scripts/
 │   ├── benchmark_cpu.py
+│   ├── benchmark_gpu.py
 │   ├── generate_sample_data.py
 │   ├── prepare_portfolio_assets.py
-│   └── run_lane_detection.py
+│   ├── run_lane_detection.py
+│   └── validate_cpu_vs_gpu.py
 ├── src/
 │   └── cuda_image_processing/
 │       ├── __init__.py
 │       ├── benchmarking.py
+│       ├── gpu_numba.py
+│       ├── gpu_pipeline.py
 │       ├── io_utils.py
 │       ├── lane_detection.py
 │       ├── portfolio.py
@@ -189,10 +194,22 @@ Run lane detection on the sample video:
 python3 scripts/run_lane_detection.py --video data/sample_lane_video.mp4 --write-video
 ```
 
+Run the CUDA path on an NVIDIA PC:
+
+```bash
+python3 scripts/run_lane_detection.py --video data/sample_lane_video.mp4 --mode cuda --write-video
+```
+
 Run the CPU benchmark:
 
 ```bash
 python3 scripts/benchmark_cpu.py --video data/sample_lane_video.mp4
+```
+
+Run the GPU benchmark on an NVIDIA PC:
+
+```bash
+python3 scripts/benchmark_gpu.py --video data/sample_lane_video.mp4
 ```
 
 Generate portfolio-ready screenshots and demo media:
@@ -218,4 +235,3 @@ Committed portfolio-ready assets are written to `docs/assets/`.
 The best next step is Phase 2: replace the synthetic sample video with real road footage and tune the CPU detector against real lanes before starting CUDA work.
 
 After that, move to the NVIDIA PC and follow [README_pc_cuda_handoff.md](README_pc_cuda_handoff.md).
-
