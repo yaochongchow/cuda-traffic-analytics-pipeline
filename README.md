@@ -45,7 +45,10 @@ Completed on the NVIDIA PC:
 - running and validating the CUDA path on an RTX 3080 Ti
 - GPU lane-stat reduction replacing CPU Hough in CUDA mode
 - CPU vs GPU benchmarks on 1080p sample footage
-- Phase 7 side-by-side demo video and benchmark charts
+- Phase 7 side-by-side demo generation and benchmark charts
+- local road-video workflow for `sample.avi` and `sample_cropped.avi`
+
+Large input and demo videos are intentionally not committed. Keep local `.avi` and `.mp4` files under `docs/assets/` or `outputs/`; Git ignores them so pushes stay small.
 
 ## Project Phases
 
@@ -85,16 +88,19 @@ The combined traffic analytics path is:
 Input Frame
         |
         v
-Lane Detection
+Optional YOLOv8 Object Detection
         |
         v
-Optional YOLOv8 Object Detection
+Mask detected vehicles from lane input
+        |
+        v
+CPU/CUDA Lane Detection
         |
         v
 Optional Perspective Display
         |
         v
-FPS / Status Overlay
+Lane, object, FPS, and status overlay
 ```
 
 The main baseline implementation is in [lane_detection.py](src/cuda_image_processing/lane_detection.py).
@@ -137,7 +143,7 @@ Copy compact lane stats back to CPU
 Overlay Rendering
 ```
 
-Latest 1080p benchmark on `docs/assets/sample.avi`:
+Latest 1080p benchmark on local `docs/assets/sample.avi`:
 
 ```text
 CPU baseline: 27.900 ms/frame, ~35.84 FPS
@@ -149,39 +155,38 @@ Speedup: ~2.69x
 
 ```text
 cuda_image_processing/
-├── README.md
-├── README_pc_cuda_handoff.md
-├── pyproject.toml
-├── data/
-│   ├── sample_lane_frame.png
-│   └── sample_lane_video.mp4
-├── docs/
-│   ├── architecture.md
-│   ├── benchmarking.md
-│   ├── project_phases.md
-│   └── assets/
-│       ├── lane_detection_demo.mp4
-│       ├── lane_detection_hero.png
-│       └── lane_detection_stages.png
-├── scripts/
-│   ├── benchmark_cpu.py
-│   ├── benchmark_gpu.py
-│   ├── generate_sample_data.py
-│   ├── prepare_portfolio_assets.py
-│   ├── run_lane_detection.py
-│   └── validate_cpu_vs_gpu.py
-├── src/
-│   └── cuda_image_processing/
-│       ├── __init__.py
-│       ├── benchmarking.py
-│       ├── gpu_numba.py
-│       ├── gpu_pipeline.py
-│       ├── io_utils.py
-│       ├── lane_detection.py
-│       ├── portfolio.py
-│       └── sample_data.py
-└── tests/
-    └── test_cpu_pipeline.py
+|-- README.md
+|-- pyproject.toml
+|-- data/
+|   |-- sample_lane_frame.png
+|   `-- sample_lane_video.mp4
+|-- docs/
+|   |-- architecture.md
+|   |-- benchmarking.md
+|   |-- project_phases.md
+|   `-- assets/
+|       |-- phase7_cuda_latency_breakdown.png
+|       `-- phase7_fps_comparison.png
+|-- scripts/
+|   |-- benchmark_cpu.py
+|   |-- benchmark_gpu.py
+|   |-- generate_sample_data.py
+|   |-- prepare_phase7_demo_assets.py
+|   |-- run_lane_detection.py
+|   |-- run_traffic_analytics.py
+|   `-- validate_cpu_vs_gpu.py
+|-- src/
+|   `-- cuda_image_processing/
+|       |-- advanced_lane_detection.py
+|       |-- benchmarking.py
+|       |-- gpu_numba.py
+|       |-- gpu_pipeline.py
+|       |-- lane_detection.py
+|       |-- object_detection.py
+|       |-- perspective.py
+|       `-- realtime_pipeline.py
+`-- tests/
+    `-- test_cpu_pipeline.py
 ```
 
 ## Quick Start on M1 Mac
@@ -208,6 +213,13 @@ Run the CUDA path on an NVIDIA PC:
 
 ```bash
 python3 scripts/run_lane_detection.py --video data/sample_lane_video.mp4 --mode cuda --write-video
+```
+
+On Windows with the local CUDA Python wheel layout, set the CUDA runtime paths first:
+
+```powershell
+$env:CUDA_PATH = "$PWD\.venv\Lib\site-packages\nvidia\cuda_nvcc"
+$env:PATH = "$env:CUDA_PATH\bin;$env:CUDA_PATH\nvvm\bin;$PWD\.venv\Lib\site-packages\nvidia\cuda_runtime\bin;$env:PATH"
 ```
 
 Run the CPU benchmark:
@@ -241,6 +253,18 @@ python3 -m pip install -e ".[traffic]"
 python3 scripts/run_traffic_analytics.py --video data/real_drive_clip.mp4 --objects --display
 ```
 
+Run the CUDA traffic analytics preview on a local real road clip:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_traffic_analytics.py --video docs\assets\sample.avi --mode cuda --lane-mode baseline --objects --display
+```
+
+Generate the Phase 7 benchmark charts and side-by-side demo locally:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\prepare_phase7_demo_assets.py --video docs\assets\sample.avi
+```
+
 Run smoke tests:
 
 ```bash
@@ -251,10 +275,13 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 Generated runtime outputs are written to `outputs/` and are intentionally gitignored.
 
-Committed portfolio-ready assets are written to `docs/assets/`.
+Large local video assets are also gitignored:
+
+- `docs/assets/*.avi`
+- `docs/assets/*.mp4`
+
+Committed portfolio-ready assets in `docs/assets/` should be small images, charts, or other lightweight files.
 
 ## Next Development Step
 
-The best next step is Phase 2: replace the synthetic sample video with real road footage and tune the advanced traffic analytics path against real lanes and vehicles before collecting final CUDA numbers.
-
-After that, move to the NVIDIA PC and follow [README_pc_cuda_handoff.md](README_pc_cuda_handoff.md).
+The best next step is to keep tuning real-road lane stability on cropped traffic footage, especially where intersections, crosswalks, parked cars, and curb posts produce lane-like edges.
